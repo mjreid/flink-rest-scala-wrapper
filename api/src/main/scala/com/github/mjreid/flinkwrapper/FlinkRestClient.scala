@@ -103,6 +103,18 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
     }
   }
 
+  def getJobDetails(
+    jobId: String
+  )(implicit ec: ExecutionContext): Future[Job] = {
+    wsClient.url(url + s"jobs/$jobId").get().map { response =>
+      val json: JsValue = Json.parse(response.body)
+      json.validate[Job] match {
+        case JsSuccess(job, _) => job
+        case JsError(e) => throw new RuntimeException(e.mkString(";"))
+      }
+    }
+  }
+
   def close(): Unit = {
     system.terminate()
     wsClient.close()

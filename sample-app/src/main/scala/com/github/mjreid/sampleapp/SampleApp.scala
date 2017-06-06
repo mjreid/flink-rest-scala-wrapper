@@ -3,7 +3,7 @@ package com.github.mjreid.sampleapp
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-import com.github.mjreid.flinkwrapper.FlinkRestClient
+import com.github.mjreid.flinkwrapper.{FlinkRestClient, RunProgramResult}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.FiniteDuration
@@ -42,15 +42,15 @@ object SampleApp extends App {
     Await.result(result, FiniteDuration(1, TimeUnit.SECONDS))
   }
 
-  def runStartProgram(): Unit = {
+  def runStartProgram(): RunProgramResult = {
     val result = flinkClient.runProgram(
       "f68c0290-8fa4-4c92-bca7-fb0770996f83_Flink Project-assembly-0.1-SNAPSHOT.jar",
       mainClass = Some("org.example.WordCount")
-    ).map { jobResult =>
-      println(jobResult)
-    }
+    )
 
-    Await.result(result, FiniteDuration(1, TimeUnit.SECONDS))
+    val jobResult = Await.result(result, FiniteDuration(1, TimeUnit.SECONDS))
+    println(jobResult)
+    jobResult
   }
 
   def runUploadJar(): Unit = {
@@ -65,11 +65,22 @@ object SampleApp extends App {
     Await.result(result, FiniteDuration(1, TimeUnit.SECONDS))
   }
 
+  def runGetJobDetails(jobId: String): Unit = {
+    // val jobId = "67fef029dd746f4c47cf61d28189a4fd"
+
+    val result = flinkClient.getJobDetails(jobId)
+
+    val response = Await.result(result, FiniteDuration(1, TimeUnit.SECONDS))
+    println(response)
+  }
+
+
   runGetConfig()
   runGetJobsList()
   runGetJobOverview()
-  runStartProgram()
   runUploadJar()
+  val runProgramResult = runStartProgram()
+  runGetJobDetails(runProgramResult.jobId)
 
 
   flinkClient.close()
