@@ -98,9 +98,9 @@ object ExecutionStatus {
         case "CANCELED" => JsSuccess(ExecutionStatus.Canceled)
         case "FAILED" => JsSuccess(ExecutionStatus.Failed)
         case "RECONCILING" => JsSuccess(ExecutionStatus.Reconciling)
-        case _ => JsError("Not a valid job status")
+        case _ => JsError("Not a valid execution status")
       }
-    case _ => JsError("Not a valid job status")
+    case _ => JsError("Not a valid execution status")
   }
 }
 
@@ -137,7 +137,7 @@ object JobStatus {
         case "CREATED" => JsSuccess(JobStatus.Created)
         case "RUNNING" => JsSuccess(JobStatus.Running)
         case "FINISHED" => JsSuccess(JobStatus.Finished)
-        case "CANCELLED" => JsSuccess(JobStatus.Canceled)
+        case "CANCELED" => JsSuccess(JobStatus.Canceled)
         case "FAILED" => JsSuccess(JobStatus.Failed)
         case "CANCELING" => JsSuccess(JobStatus.Canceling)
         case "SUSPENDED" => JsSuccess(JobStatus.Suspended)

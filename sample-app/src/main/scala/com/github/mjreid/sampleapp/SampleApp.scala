@@ -3,7 +3,7 @@ package com.github.mjreid.sampleapp
 import java.io.File
 import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
 
-import com.github.mjreid.flinkwrapper.{FlinkRestClient, RunProgramResult}
+import com.github.mjreid.flinkwrapper.{CancelJobAccepted, CancellationStatusInfo, FlinkRestClient, RunProgramResult}
 
 import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration.FiniteDuration
@@ -42,10 +42,10 @@ object SampleApp extends App {
     Await.result(result, FiniteDuration(1, TimeUnit.SECONDS))
   }
 
-  def runStartProgram(): RunProgramResult = {
+  def runStartProgram(jarName: String, mainClass: Option[String]): RunProgramResult = {
     val result = flinkClient.runProgram(
-      "f68c0290-8fa4-4c92-bca7-fb0770996f83_Flink Project-assembly-0.1-SNAPSHOT.jar",
-      mainClass = Some("org.example.WordCount")
+      jarName,//"c5556a8b-ea02-4c69-b7a0-59011cd7e4bd_bs.jar",
+      mainClass = mainClass.orElse(Some("org.example.WordCount"))
     )
 
     val jobResult = Await.result(result, FiniteDuration(1, TimeUnit.SECONDS))
@@ -53,22 +53,16 @@ object SampleApp extends App {
     jobResult
   }
 
-  class UploadJarThreadFactory extends ThreadFactory {
-    def newThread(r: Runnable): Thread = {
-      new Thread(r, "upload-jar-thread")
-    }
-  }
-
-  def runUploadJar(): Unit = {
+  def runUploadJar(): String = {
     val flinkUrl = "http://localhost:8081"
     val flinkClient = FlinkRestClient(flinkUrl)
-    val result = flinkClient.uploadJar(
-      new File("/tmp/fltest.jar")
-    ).map { result =>
-      println(result)
-    }
+    val resultF = flinkClient.uploadJar(
+      new File("/tmp/bs2.jar")
+    )
 
-    Await.result(result, FiniteDuration(4, TimeUnit.SECONDS))
+    val result = Await.result(resultF, FiniteDuration(4, TimeUnit.SECONDS))
+    println(result)
+    result.filename
   }
 
   def runGetJobDetails(jobId: String): Unit = {
@@ -86,14 +80,49 @@ object SampleApp extends App {
     println(response)
   }
 
+  def runCancelJob(jobId: String): Unit = {
+    val resultF = flinkClient.cancelJob(jobId)
+    val result = Await.result(resultF, FiniteDuration(1, TimeUnit.SECONDS))
+    println(result)
+  }
+
+  def runCancelJobWithSavepoint(jobId: String, savepointPath: String): CancelJobAccepted = {
+    val resultF = flinkClient.cancelJobWithSavepoint(jobId, Some(savepointPath))
+    val result = Await.result(resultF, FiniteDuration(1, TimeUnit.SECONDS))
+    println(result)
+    result
+  }
+
+  def runGetCancellationStatus(location: String): CancellationStatusInfo = {
+    ???
+  }
+
   runGetConfig()
   runGetJobsList()
   runGetJobOverview()
   runGetJobOverview()
-  runUploadJar()
-  val runProgramResult = runStartProgram()
+  val jarName = runUploadJar()
+  val runProgramResult = runStartProgram(jarName, None)
   runGetJobDetails(runProgramResult.jobId)
   runGetJobPlan(runProgramResult.jobId)
+
+  {
+    // Streaming and cancellation testing
+    val kafkaProgramResult = runStartProgram(jarName, Some("org.example.KafkaEcho"))
+    Thread.sleep(1000)
+    runGetJobDetails(kafkaProgramResult.jobId)
+    runCancelJob(kafkaProgramResult.jobId)
+    runGetJobDetails(kafkaProgramResult.jobId)
+  }
+
+  {
+    // Streaming and cancellation with savepoint testing
+    val kafkaProgramResult = runStartProgram(jarName, Some("org.example.KafkaEcho"))
+    Thread.sleep(1000)
+    runGetJobDetails(kafkaProgramResult.jobId)
+    runCancelJobWithSavepoint(kafkaProgramResult.jobId, "/tmp")
+    runGetJobDetails(kafkaProgramResult.jobId)
+  }
 
   flinkClient.close()
 }

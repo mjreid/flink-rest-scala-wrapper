@@ -1,6 +1,7 @@
 package com.github.mjreid.flinkwrapper
 
 import java.io.File
+import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
 import akka.actor.ActorSystem
@@ -51,7 +52,7 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
       val json: JsValue = Json.parse(response.body)
       json.validate[JobOverview] match {
         case JsSuccess(jobOverview, _) => jobOverview
-        case JsError(_) => throw new RuntimeException
+        case JsError(e) => throw new RuntimeException(e.mkString(";"))
       }
     }
   }
@@ -140,6 +141,28 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
       val json: JsValue = Json.parse(response.body)
       json.validate[JobPlan] match {
         case JsSuccess(jobPlan, _) => jobPlan
+        case JsError(e) => throw new RuntimeException(e.mkString(";"))
+      }
+    }
+  }
+
+  def cancelJob(jobId: String)(implicit ec: ExecutionContext): Future[Unit] = {
+    wsClient.url(url + s"jobs/$jobId/cancel").delete().map { _ => ()}
+  }
+
+  def cancelJobWithSavepoint(
+    jobId: String,
+    targetDirectory: Option[String] = None
+  )(implicit ec: ExecutionContext): Future[CancelJobAccepted] = {
+    val targetDirectoryUrl = targetDirectory
+      .map { unencoded => URLEncoder.encode(unencoded, "UTF-8")}
+      .map { d => s"target-directory/$d/" }.getOrElse("")
+    val fullUrl = url + s"jobs/$jobId/cancel-with-savepoint/$targetDirectoryUrl"
+
+    wsClient.url(fullUrl).get().map { response =>
+      val json: JsValue = Json.parse(response.body)
+      json.validate[CancelJobAccepted] match {
+        case JsSuccess(cancelJobRequest, _) => cancelJobRequest
         case JsError(e) => throw new RuntimeException(e.mkString(";"))
       }
     }
