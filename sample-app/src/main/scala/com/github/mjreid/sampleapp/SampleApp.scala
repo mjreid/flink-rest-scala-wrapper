@@ -1,11 +1,11 @@
 package com.github.mjreid.sampleapp
 
 import java.io.File
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
 
 import com.github.mjreid.flinkwrapper.{FlinkRestClient, RunProgramResult}
 
-import scala.concurrent.Await
+import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -53,6 +53,12 @@ object SampleApp extends App {
     jobResult
   }
 
+  class UploadJarThreadFactory extends ThreadFactory {
+    def newThread(r: Runnable): Thread = {
+      new Thread(r, "upload-jar-thread")
+    }
+  }
+
   def runUploadJar(): Unit = {
     val flinkUrl = "http://localhost:8081"
     val flinkClient = FlinkRestClient(flinkUrl)
@@ -62,7 +68,7 @@ object SampleApp extends App {
       println(result)
     }
 
-    Await.result(result, FiniteDuration(1, TimeUnit.SECONDS))
+    Await.result(result, FiniteDuration(4, TimeUnit.SECONDS))
   }
 
   def runGetJobDetails(jobId: String): Unit = {
@@ -74,14 +80,20 @@ object SampleApp extends App {
     println(response)
   }
 
+  def runGetJobPlan(jobId: String): Unit = {
+    val result = flinkClient.getJobPlan(jobId)
+    val response = Await.result(result, FiniteDuration(1, TimeUnit.SECONDS))
+    println(response)
+  }
 
   runGetConfig()
   runGetJobsList()
   runGetJobOverview()
+  runGetJobOverview()
   runUploadJar()
   val runProgramResult = runStartProgram()
   runGetJobDetails(runProgramResult.jobId)
-
+  runGetJobPlan(runProgramResult.jobId)
 
   flinkClient.close()
 }

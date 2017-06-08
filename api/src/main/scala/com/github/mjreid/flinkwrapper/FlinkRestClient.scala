@@ -6,12 +6,11 @@ import java.nio.charset.StandardCharsets
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import play.api.libs.json._
-import play.api.libs.ws.ahc.StandaloneAhcWSClient
-import play.shaded.ahc.org.asynchttpclient.AsyncHttpClient
+import play.api.libs.ws.ahc.{StandaloneAhcWSClient, StandaloneAhcWSResponse}
+import play.shaded.ahc.org.asynchttpclient.{AsyncCompletionHandler, AsyncHttpClient, Response => AHCResponse}
 import play.shaded.ahc.org.asynchttpclient.request.body.multipart.FilePart
 
-import scala.compat.java8.FutureConverters._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
 /**
   * FlinkRestClient is the primary contact point for the Flink REST server.
@@ -65,6 +64,7 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
     savepointPath: Option[String] = None,
     allowNonRestoredState: Option[Boolean] = None
   )(implicit ec: ExecutionContext): Future[RunProgramResult] = {
+    // Yes, these need to be query parameters rather than form values.
     val queryParameters: Seq[(String, String)] = Seq[Option[(String, String)]](
       programArguments.map { args => ("program-args", args.mkString(" ")) },
       mainClass.map { mc => ("entry-class", mc) },
@@ -88,14 +88,32 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
   )(implicit ec: ExecutionContext): Future[UploadJarResult] = {
     // This is a mess and resorts to manually using the underlying async http client (rather than play-ws) because
     // of lack of support for multipart form uploads. See https://github.com/playframework/play-ws/issues/84
+    // And on top of that, calling this method causes a dangling thread for smaller JAR files due to a bug in Netty;
+    // see the sordid history at https://github.com/AsyncHttpClient/async-http-client/issues/233
     val filePart =
       new FilePart("jarfile", file, "application/x-java-archive", StandardCharsets.UTF_8, file.getName)
     val underlyingClient = wsClient.underlying[AsyncHttpClient]
-    val request = underlyingClient
+    val requestBuilder = underlyingClient
       .preparePost(url + "jars/upload")
       .addBodyPart(filePart)
-    request.execute().toCompletableFuture.toScala.map { response =>
-      val json = Json.parse(response.getResponseBody)
+
+    val result = Promise[StandaloneAhcWSResponse]()
+    val handler = new AsyncCompletionHandler[AHCResponse]() {
+      override def onCompleted(response: AHCResponse): AHCResponse = {
+        result.success(StandaloneAhcWSResponse(response))
+        response
+      }
+
+      override def onThrowable(t: Throwable): Unit = {
+        result.failure(t)
+      }
+    }
+
+    underlyingClient.executeRequest(requestBuilder.build(), handler)
+    val resultF = result.future
+
+    resultF.map { response =>
+      val json = Json.parse(response.body)
       json.validate[UploadJarResult] match {
         case JsSuccess(uploadJarResult, _) => uploadJarResult
         case JsError(e) => throw new RuntimeException(e.toString)
@@ -115,9 +133,21 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
     }
   }
 
+  def getJobPlan(
+    jobId: String
+  )(implicit ec: ExecutionContext): Future[JobPlan] = {
+    wsClient.url(url + s"jobs/$jobId/plan").get().map { response =>
+      val json: JsValue = Json.parse(response.body)
+      json.validate[JobPlan] match {
+        case JsSuccess(jobPlan, _) => jobPlan
+        case JsError(e) => throw new RuntimeException(e.mkString(";"))
+      }
+    }
+  }
+
   def close(): Unit = {
-    system.terminate()
     wsClient.close()
+    system.terminate()
   }
 }
 
