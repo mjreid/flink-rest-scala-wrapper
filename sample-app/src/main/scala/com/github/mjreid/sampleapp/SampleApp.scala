@@ -3,7 +3,7 @@ package com.github.mjreid.sampleapp
 import java.io.File
 import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
 
-import com.github.mjreid.flinkwrapper.{CancelJobAccepted, CancellationStatusInfo, FlinkRestClient, RunProgramResult}
+import com.github.mjreid.flinkwrapper._
 
 import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration.FiniteDuration
@@ -94,7 +94,17 @@ object SampleApp extends App {
   }
 
   def runGetCancellationStatus(location: String): CancellationStatusInfo = {
-    ???
+    val resultF = flinkClient.getCancellationStatus(location)
+    val result = Await.result(resultF, FiniteDuration(1, TimeUnit.SECONDS))
+    println(result)
+    result
+  }
+
+  def runGetJobExceptions(str: String): JobExceptions = {
+    val resultF = flinkClient.getJobExceptions(str)
+    val result = Await.result(resultF, FiniteDuration(1, TimeUnit.SECONDS))
+    println(result)
+    result
   }
 
   runGetConfig()
@@ -120,8 +130,18 @@ object SampleApp extends App {
     val kafkaProgramResult = runStartProgram(jarName, Some("org.example.KafkaEcho"))
     Thread.sleep(1000)
     runGetJobDetails(kafkaProgramResult.jobId)
-    runCancelJobWithSavepoint(kafkaProgramResult.jobId, "/tmp")
+    val cancelJobAccepted = runCancelJobWithSavepoint(kafkaProgramResult.jobId, "/tmp")
     runGetJobDetails(kafkaProgramResult.jobId)
+    var status = runGetCancellationStatus(cancelJobAccepted.location)
+    println(status)
+    while (status.status != CancellationStatus.Failed && status.status != CancellationStatus.Success) {
+      Thread.sleep(10000)
+      status = runGetCancellationStatus(cancelJobAccepted.location)
+      println(status)
+    }
+
+    val jobExceptions = runGetJobExceptions(kafkaProgramResult.jobId)
+    println(jobExceptions)
   }
 
   flinkClient.close()

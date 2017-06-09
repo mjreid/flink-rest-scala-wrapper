@@ -168,6 +168,30 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
     }
   }
 
+  def getCancellationStatus(
+    location: String
+  )(implicit ec: ExecutionContext): Future[CancellationStatusInfo] = {
+    wsClient.url(url + location).get().map { response =>
+      val json: JsValue = Json.parse(response.body)
+      json.validate[CancellationStatusInfo] match {
+        case JsSuccess(info, _) => info
+        case JsError(e) => throw new RuntimeException(e.mkString(";"))
+      }
+    }
+  }
+
+  def getJobExceptions(
+    jobId: String
+  )(implicit ec: ExecutionContext): Future[JobExceptions] = {
+    wsClient.url(url + s"jobs/$jobId/exceptions/").get().map { response =>
+      val json: JsValue = Json.parse(response.body)
+      json.validate[JobExceptions] match {
+        case JsSuccess(jobExceptions, _) => jobExceptions
+        case JsError(e) => throw new RuntimeException(e.mkString(";"))
+      }
+    }
+  }
+
   def close(): Unit = {
     wsClient.close()
     system.terminate()

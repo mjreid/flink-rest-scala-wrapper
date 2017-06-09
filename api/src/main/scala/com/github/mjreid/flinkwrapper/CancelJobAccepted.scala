@@ -9,18 +9,19 @@ case class CancelJobAccepted(
 )
 
 case class CancellationStatusInfo(
-  status: CancellationStatus,
+  status: CancellationStatus.CancellationStatus,
   requestId: Long,
   savepointPath: Option[String],
   failureCause: Option[String]
 )
 
-sealed trait CancellationStatus
-case object InProgress extends CancellationStatus
-case object Success extends CancellationStatus
-case object Failed extends CancellationStatus
-
 object CancellationStatus {
+
+  sealed trait CancellationStatus
+  case object InProgress extends CancellationStatus
+  case object Success extends CancellationStatus
+  case object Failed extends CancellationStatus
+
   implicit val reads: Reads[CancellationStatus] = Reads {
     case JsString(statusString) =>
       statusString.toUpperCase match {
@@ -42,7 +43,7 @@ object CancelJobAccepted {
 
 object CancellationStatusInfo {
  implicit val reads: Reads[CancellationStatusInfo] = (
-   (JsPath \ "status").read[CancellationStatus] and
+   (JsPath \ "status").read[CancellationStatus.CancellationStatus] and
      (JsPath \ "request-id").read[Long] and
      (JsPath \ "savepoint-path").readNullable[String] and
      (JsPath \ "cause").readNullable[String]
