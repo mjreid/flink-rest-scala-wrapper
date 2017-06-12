@@ -15,18 +15,38 @@ guaranteed.
 
 # Getting started
 
+Add an SBT reference:
+
+```scala
+libraryDependencies += "com.github.mjreid" %% "flink-wrapper" % "0.0.1"
+```
+
 Create an instance of the FlinkRestClient:
+
+```scala
+val flinkClient = FlinkRestClient("http://flink-server.example.com:8081/")
+```
 
 Use the FlinkRestClient to make a request, being sure to have an implicit ExecutionContext in scope:
 
-Do what you want with the result!
+```scala
+import scala.concurrent.ExecutionContext.Implicits.global
+val result = flinkClient.getJobsOverview()
+```
+
+Do something with the result.
+
+```scala
+result.map { jobsOverview => println(jobsOverview) }
+```
 
 # Handling failures
 
 This wrapper uses "basic" Scala idioms (namely, `Future` and `Option`) to communicate failures. Any caught exceptions in
-a failed `Future` will be wrapped in a `FlinkRestException`.
+a failed `Future` will be wrapped in a `FlinkWrapperException` or one of its subclasses.
 
-`FlinkRestTimeoutException`
+The possible exceptions are `FlinkWrapperInvalidJsonException` when an unexpected JSON value is returned, and
+`FlinkWrapperUnexpectedStatusCodeException` when an unexpected HTTP status code is returned.
 
 # Execution contexts
 
@@ -37,6 +57,34 @@ If you're making a small app, you can import the global execution context. Howev
 we recommend using a dedicated executor service. This will isolate your thread pools so that your application doesn't
 stall if the Flink REST endpoints take a long time to respond, for example.
 
-# Logging
+# Full API list
 
-This wrapper uses slf4j to log.
+The follow APIs are available in this wrapper. See the Scaladoc for more details.
+
+## Job Management
+
+* `runProgram` starts a Flink program with the specified parameters. **Important note:** The `jarId` argument is *not*
+what appears in the Flink UI -- a hidden GUID is appended. It's recommended to use the `uploadJar` method (see below),
+which will return the full filename that can be used as part of `runProgram`.
+* `cancelJob` cancels a job immediately.
+* `cancelJobWithSavepoint` cancels a job with a savepoint. This method returns a `CancelJobAccepted` object; use the
+`getCancellationStatus` method to query the status. Cancellations can fail if, for example, the savepoint files cannot
+be written.
+* `uploadJar` uploads a JAR that can be executed via `runProgram`.
+
+## Job Status
+
+* `getJobsList` returns all jobs in Flink, separated by state.
+* `getJobOverview` returns all running and finished jobs in Flink with additional execution details.
+* `getJobDetails` gets the details of a specific Flink job.
+* `getJobPlan` gets the plan of a specific Flink job. (The plan data is also included in `getJobDetails`.)
+* `getJobExceptions` gets any exceptions that occurred in a job.
+
+## Informational
+
+* `getConfig` gets the system-level Flink configuration.
+
+# Credits
+
+- Michael Reid (mjreid @github)
+- Your name here? Pull requests welcome!
