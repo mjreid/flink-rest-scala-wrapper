@@ -1,13 +1,12 @@
 package com.github.mjreid.flinkwrapper
 
-import java.time.{Instant, LocalDateTime, ZoneId}
-import java.util.concurrent.TimeUnit
+import java.time.LocalDateTime
 
 import com.github.mjreid.flinkwrapper.util.Readers
-import play.api.libs.json._
 import play.api.libs.functional.syntax._
+import play.api.libs.json._
 
-import scala.concurrent.duration.{Duration, FiniteDuration}
+import scala.concurrent.duration.Duration
 
 /**
   * JobOverview contains a summary of all jobs, grouped by status.

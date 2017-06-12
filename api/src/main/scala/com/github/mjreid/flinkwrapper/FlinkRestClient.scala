@@ -6,10 +6,11 @@ import java.nio.charset.StandardCharsets
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import com.fasterxml.jackson.core.JsonParseException
 import play.api.libs.json._
 import play.api.libs.ws.ahc.{StandaloneAhcWSClient, StandaloneAhcWSResponse}
-import play.shaded.ahc.org.asynchttpclient.{AsyncCompletionHandler, AsyncHttpClient, Response => AHCResponse}
 import play.shaded.ahc.org.asynchttpclient.request.body.multipart.FilePart
+import play.shaded.ahc.org.asynchttpclient.{AsyncCompletionHandler, AsyncHttpClient, Response => AHCResponse}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
@@ -26,37 +27,36 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
   private val wsClient = StandaloneAhcWSClient()
   // Append a trailing slash if not present
   private val url = if (flinkRestClientConfig.url.endsWith("/")) flinkRestClientConfig.url else flinkRestClientConfig.url + "/"
+  private val responseHandler = flinkRestClientConfig.responseHandler
 
+  /**
+    * getConfig returns the system level configuration level of the Flink server.
+    */
   def getConfig()(implicit ec: ExecutionContext): Future[FlinkConfigInfo] = {
-    wsClient.url(url + "config").get().map { response =>
-      val json: JsValue = Json.parse(response.body)
-      json.validate[FlinkConfigInfo] match {
-        case JsSuccess(flinkConfigInfo, _) => flinkConfigInfo
-        case JsError(_) => throw new RuntimeException
-      }
-    }
+    wsClient.url(url + "config").get().map(responseHandler.handleResponse[FlinkConfigInfo])
   }
 
+  /**
+    * getJobsList gets a list of all jobs, separated by the state of each job.
+    */
   def getJobsList()(implicit ec: ExecutionContext): Future[JobsList] = {
-    wsClient.url(url + "jobs").get().map { response =>
-      val json: JsValue = Json.parse(response.body)
-      json.validate[JobsList] match {
-        case JsSuccess(jobsList, _) => jobsList
-        case JsError(_) => throw new RuntimeException
-      }
-    }
+    wsClient.url(url + "jobs").get().map(responseHandler.handleResponse[JobsList])
   }
 
+  /**
+    * getJobOverview provides a list of all running and finished jobs with a medium level of detail.
+    */
   def getJobOverview()(implicit ec: ExecutionContext): Future[JobOverview] = {
-    wsClient.url(url + "joboverview").get().map { response =>
-      val json: JsValue = Json.parse(response.body)
-      json.validate[JobOverview] match {
-        case JsSuccess(jobOverview, _) => jobOverview
-        case JsError(e) => throw new RuntimeException(e.mkString(";"))
-      }
-    }
+    wsClient.url(url + "joboverview").get().map(responseHandler.handleResponse[JobOverview])
   }
 
+  /**
+    * runProgram starts a job on the Flink server.
+    *
+    * IMPORTANT - The jarId is *not* the same as what appears in the Flink web UI -- there are hidden GUID values
+    * prepended to the JAR name. If you use the uploadJar method, the correct value will be
+    * returned in [[UploadJarResult.filename]].
+    */
   def runProgram(
     jarId: String,
     programArguments: Option[Seq[String]] = None,
@@ -65,7 +65,7 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
     savepointPath: Option[String] = None,
     allowNonRestoredState: Option[Boolean] = None
   )(implicit ec: ExecutionContext): Future[RunProgramResult] = {
-    // Yes, these need to be query parameters rather than form values.
+    // Yes, these need to be query parameters rather than form values, despite this being a POST.
     val queryParameters: Seq[(String, String)] = Seq[Option[(String, String)]](
       programArguments.map { args => ("program-args", args.mkString(" ")) },
       mainClass.map { mc => ("entry-class", mc) },
@@ -75,15 +75,12 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
     ).flatten
 
     wsClient.url(url + s"jars/$jarId/run").addQueryStringParameter(queryParameters:_*)
-      .post("").map { response =>
-      val json: JsValue = Json.parse(response.body)
-      json.validate[RunProgramResult] match {
-        case JsSuccess(runProgramResult, _) => runProgramResult
-        case JsError(e) => throw new RuntimeException(e.toString)
-      }
-    }
+      .post("").map(responseHandler.handleResponse[RunProgramResult])
   }
 
+  /**
+    * uploadJar uploads a JAR to the Flink server.
+    */
   def uploadJar(
     file: File
   )(implicit ec: ExecutionContext): Future[UploadJarResult] = {
@@ -114,42 +111,58 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
     val resultF = result.future
 
     resultF.map { response =>
-      val json = Json.parse(response.body)
-      json.validate[UploadJarResult] match {
-        case JsSuccess(uploadJarResult, _) => uploadJarResult
-        case JsError(e) => throw new RuntimeException(e.toString)
+      try {
+        val json = Json.parse(response.body)
+        json.validate[UploadJarResult] match {
+          case JsSuccess(uploadJarResult, _) => uploadJarResult
+          case JsError(e) => throw new RuntimeException(e.toString)
+        }
+      } catch {
+        case e: JsonParseException => throw FlinkWrapperInvalidJsonException("Response was not valid JSON", e)
       }
     }
   }
 
+  /**
+    * getJobDetails returns detailed information about a single job.
+    *
+    * If the job does not exist, None is returned in the future.
+    */
   def getJobDetails(
     jobId: String
-  )(implicit ec: ExecutionContext): Future[Job] = {
-    wsClient.url(url + s"jobs/$jobId").get().map { response =>
-      val json: JsValue = Json.parse(response.body)
-      json.validate[Job] match {
-        case JsSuccess(job, _) => job
-        case JsError(e) => throw new RuntimeException(e.mkString(";"))
-      }
-    }
+  )(implicit ec: ExecutionContext): Future[Option[Job]] = {
+    wsClient.url(url + s"jobs/$jobId").get().map(responseHandler.handleResponseWith404[Job])
   }
 
+  /**
+    * getJobPlan returns the job plan JSON for a given job.
+    *
+    * If the job does not exist, None is returned in the future.
+    */
   def getJobPlan(
     jobId: String
-  )(implicit ec: ExecutionContext): Future[JobPlan] = {
-    wsClient.url(url + s"jobs/$jobId/plan").get().map { response =>
-      val json: JsValue = Json.parse(response.body)
-      json.validate[JobPlan] match {
-        case JsSuccess(jobPlan, _) => jobPlan
-        case JsError(e) => throw new RuntimeException(e.mkString(";"))
-      }
-    }
+  )(implicit ec: ExecutionContext): Future[Option[JobPlan]] = {
+    wsClient.url(url + s"jobs/$jobId/plan").get().map(responseHandler.handleResponseWith404[JobPlan])
   }
 
+  /**
+    * cancelJob cancels an in progress job.
+    *
+    * Note that even if the job ID does not exist or is not in a cancellable state, this still returns a success.
+    */
   def cancelJob(jobId: String)(implicit ec: ExecutionContext): Future[Unit] = {
-    wsClient.url(url + s"jobs/$jobId/cancel").delete().map { _ => ()}
+    wsClient.url(url + s"jobs/$jobId/cancel").delete().map(responseHandler.handleResponse[JsValue]).map { _ => () }
   }
 
+  /**
+    * cancelJob cancels an in progress job with a savepoint.
+    *
+    * If a target directory is supplied, it is used; otherwise, Flink defaults to the directory configured on the server.
+    *
+    * This method is asynchronous, on the Flink side; saving the state may take an extended period of time.
+    * The [[CancelJobAccepted.location]] can be fed into [[getCancellationStatus()]] to query the status of the
+    * cancellation.
+    */
   def cancelJobWithSavepoint(
     jobId: String,
     targetDirectory: Option[String] = None
@@ -159,39 +172,35 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
       .map { d => s"target-directory/$d/" }.getOrElse("")
     val fullUrl = url + s"jobs/$jobId/cancel-with-savepoint/$targetDirectoryUrl"
 
-    wsClient.url(fullUrl).get().map { response =>
-      val json: JsValue = Json.parse(response.body)
-      json.validate[CancelJobAccepted] match {
-        case JsSuccess(cancelJobRequest, _) => cancelJobRequest
-        case JsError(e) => throw new RuntimeException(e.mkString(";"))
-      }
-    }
+    wsClient.url(fullUrl).get().map(responseHandler.handleResponse[CancelJobAccepted])
   }
 
+  /**
+    * getCancellationStatus returns the status of a cancellation that is in progress (i.e. as the result of
+    * [[cancelJobWithSavepoint()]].
+    */
   def getCancellationStatus(
     location: String
   )(implicit ec: ExecutionContext): Future[CancellationStatusInfo] = {
-    wsClient.url(url + location).get().map { response =>
-      val json: JsValue = Json.parse(response.body)
-      json.validate[CancellationStatusInfo] match {
-        case JsSuccess(info, _) => info
-        case JsError(e) => throw new RuntimeException(e.mkString(";"))
-      }
-    }
+    wsClient.url(url + location).get().map(responseHandler.handleResponseIgnoreStatusCodes[CancellationStatusInfo])
   }
 
+  /**
+    * getJobExceptions returns all exceptions associated with the job.
+    *
+    * If the job does not exist, None is returned in the future.
+    */
   def getJobExceptions(
     jobId: String
-  )(implicit ec: ExecutionContext): Future[JobExceptions] = {
-    wsClient.url(url + s"jobs/$jobId/exceptions/").get().map { response =>
-      val json: JsValue = Json.parse(response.body)
-      json.validate[JobExceptions] match {
-        case JsSuccess(jobExceptions, _) => jobExceptions
-        case JsError(e) => throw new RuntimeException(e.mkString(";"))
-      }
-    }
+  )(implicit ec: ExecutionContext): Future[Option[JobExceptions]] = {
+    wsClient.url(url + s"jobs/$jobId/exceptions/").get().map(responseHandler.handleResponseWith404[JobExceptions])
   }
 
+  /**
+    * close terminates the actor system and closes the underlying HTTP client.
+    *
+    * This method must be called to properly clean up this client.
+    */
   def close(): Unit = {
     wsClient.close()
     system.terminate()
@@ -199,14 +208,30 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
 }
 
 object FlinkRestClient {
+
+  /**
+    * apply creates a new [[FlinkRestClient]] pointing toward the given URL. It will create a new actor system.
+    */
   def apply(url: String): FlinkRestClient = {
     new FlinkRestClient(FlinkRestClientConfig(
       url
+    ))
+  }
+
+  /**
+    * apply creates a new [[FlinkRestClient]] pointing toward the given URL, using the given actor system for HTTP
+    * requests.
+    */
+  def apply(url: String, system: ActorSystem): FlinkRestClient = {
+    new FlinkRestClient(FlinkRestClientConfig(
+      url,
+      Some(system)
     ))
   }
 }
 
 case class FlinkRestClientConfig(
   url: String,
-  maybeActorSystem: Option[ActorSystem] = None
+  maybeActorSystem: Option[ActorSystem] = None,
+  responseHandler: FlinkResponseHandler = FlinkResponseHandler
 )

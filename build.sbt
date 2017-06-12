@@ -8,6 +8,7 @@ lazy val commonSettings = Seq(
 
 lazy val root = project.in(file("."))
   .settings(commonSettings)
+  .aggregate(api, sampleApp)
 
 lazy val api = project.in(file("api"))
   .settings(commonSettings)

@@ -1,17 +1,19 @@
 package com.github.mjreid.sampleapp
 
 import java.io.File
-import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
+import java.util.concurrent.TimeUnit
 
 import com.github.mjreid.flinkwrapper._
 
-import scala.concurrent.{Await, ExecutionContext}
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.FiniteDuration
 
 /**
-  * SampleApp is a small program that serves as a "manual integration test suite" of sorts. Hopefully temporary until a
-  * real integration test solution is added.
+  * SampleApp is a small program that serves as an "integration test suite" of sorts. Though this requires a Flink
+  * instance at localhost:8081, plus some sample Flink jobs, so it's mostly manual to set up.
+  *
+  * Hopefully temporary until a real integration test solution is added.
   */
 object SampleApp extends App {
 
@@ -104,7 +106,7 @@ object SampleApp extends App {
     val resultF = flinkClient.getJobExceptions(str)
     val result = Await.result(resultF, FiniteDuration(1, TimeUnit.SECONDS))
     println(result)
-    result
+    result.get
   }
 
   runGetConfig()
