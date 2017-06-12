@@ -1,3 +1,5 @@
+import sbt.url
+
 name := "flink-rest-scala-wrapper"
 
 lazy val commonSettings = Seq(
@@ -17,6 +19,26 @@ lazy val api = project.in(file("api"))
   .settings(commonSettings)
   .settings(name := "flink-wrapper")
   .settings(libraryDependencies ++= Dependencies.all)
+  .settings(Seq(
+    licenses := Seq("APL2" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt")),
+
+    sonatypeProfileName := "com.github.mjreid",
+
+    publishMavenStyle := true,
+
+    homepage := Some(url("https://github.com/mjreid/flink-rest-scala-wrapper")),
+
+    scmInfo := Some(
+      ScmInfo(
+        url("https://github.com/mjreid/flink-rest-scala-wrapper.git"),
+        "scm:git@github.com:mjreid/flink-rest-scala-wrapper.git"
+      )
+    ),
+
+    developers := List(
+      Developer(id="mjreid", name="Michael Reid", email="reidmichaeljames@gmail.com", url=url("https://github.com/mjreid/"))
+    ))
+  )
 
 lazy val sampleApp = project.in(file("sample-app"))
   .settings(commonSettings)
@@ -35,23 +57,4 @@ publishTo := Some(
     Opts.resolver.sonatypeSnapshots
   else
     Opts.resolver.sonatypeStaging
-)
-
-sonatypeProfileName := "com.github.mjreid"
-
-publishMavenStyle := true
-
-licenses := Seq("APL2" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"))
-
-homepage := Some(url("https://github.com/mjreid/flink-rest-scala-wrapper"))
-
-scmInfo := Some(
-  ScmInfo(
-    url("https://github.com/mjreid/flink-rest-scala-wrapper.git"),
-    "scm:git@github.com:mjreid/flink-rest-scala-wrapper.git"
-  )
-)
-
-developers := List(
-  Developer(id="mjreid", name="Michael Reid", email="reidmichaeljames@gmail.com", url=url("https://github.com/mjreid/"))
 )
