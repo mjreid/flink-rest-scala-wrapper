@@ -37,7 +37,7 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
   }
 
   /**
-    * getClusterOverview returns the overiview of the Flink cluster.
+    * getClusterOverview returns the overview of the Flink cluster.
     */
   def getClusterOverview()(implicit ec: ExecutionContext): Future[FlinkClusterOverview] = {
     wsClient.url(url + "overview").get().map(responseHandler.handleResponse[FlinkClusterOverview])
