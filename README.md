@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/mjreid/flink-rest-scala-wrapper.png?branch=master)](https://travis-ci.org/mjreid/flink-rest-scala-wrapper)
+[<img src="https://img.shields.io/maven-central/v/com.github.mjreid/flink-wrapper_2.11.svg"/>](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22flink-wrapper_2.11%22)
+
 # Flink REST Api Scala Wrapper 
 
 Scala wrapper around Flink's REST API endpoints. This API is listed in the Flink documentation as the
