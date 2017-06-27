@@ -18,7 +18,7 @@ guaranteed.
 Add an SBT reference:
 
 ```scala
-libraryDependencies += "com.github.mjreid" %% "flink-wrapper" % "0.0.1"
+libraryDependencies += "com.github.mjreid" %% "flink-wrapper" % "0.0.2"
 ```
 
 Create an instance of the FlinkRestClient:

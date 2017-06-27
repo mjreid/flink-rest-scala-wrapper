@@ -4,7 +4,7 @@ name := "flink-rest-scala-wrapper"
 
 lazy val commonSettings = Seq(
   organization := "com.github.mjreid",
-  version := "0.0.2-SNAPSHOT",
+  version := "0.0.2",
   scalaVersion := "2.11.11"
 )
 
