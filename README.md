@@ -83,6 +83,9 @@ be written.
 ## Informational
 
 * `getConfig` gets the system-level Flink configuration.
+* `getClusterOverview` gets the Flink cluster information.
+* `getJobManagerConfig` gets all the JobManager configurations.
+* `getClusterTaskManagers` gets the information about all the TaskManagers inside the Flink cluster.
 
 # Credits
 

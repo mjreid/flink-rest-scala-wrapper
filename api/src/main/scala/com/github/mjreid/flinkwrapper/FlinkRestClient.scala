@@ -37,6 +37,26 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
   }
 
   /**
+    * getClusterOverview returns the overview of the Flink cluster.
+    */
+  def getClusterOverview()(implicit ec: ExecutionContext): Future[FlinkClusterOverview] = {
+    wsClient.url(url + "overview").get().map(responseHandler.handleResponse[FlinkClusterOverview])
+  }
+  /**
+    * getJobManagerConfig returns the job manager configurations of the Flink server.
+    */
+  def getJobManagerConfig()(implicit ec: ExecutionContext): Future[Seq[FlinkConfig]] = {
+    wsClient.url(url + "jobmanager/config").get().map(responseHandler.handleResponse[Seq[FlinkConfig]])
+  }
+
+  /**
+    * getClusterTaskManagers gets a list of all task managers.
+    */
+  def getClusterTaskManagers()(implicit ec: ExecutionContext): Future[ClusterTaskManagers] = {
+    wsClient.url(url + "taskmanagers").get().map(responseHandler.handleResponse[ClusterTaskManagers])
+  }
+
+  /**
     * getJobsList gets a list of all jobs, separated by the state of each job.
     */
   def getJobsList()(implicit ec: ExecutionContext): Future[JobsList] = {

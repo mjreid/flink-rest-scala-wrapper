@@ -24,12 +24,3 @@ object FlinkConfigInfo {
     )(FlinkConfigInfo.apply _)
 }
 
-case class FlinkClusterOverview(
-  taskManagers: Int,
-  totalSlots: Int,
-  availableSlots: Int,
-  runningJobs: Int,
-  finishedJobs: Int,
-  cancelledJobs: Int,
-  failedJobs: Int
-)
