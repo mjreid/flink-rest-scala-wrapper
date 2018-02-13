@@ -8,11 +8,14 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.fasterxml.jackson.core.JsonParseException
 import play.api.libs.json._
+import play.api.libs.ws.DefaultBodyWritables
 import play.api.libs.ws.ahc.{StandaloneAhcWSClient, StandaloneAhcWSResponse}
 import play.shaded.ahc.org.asynchttpclient.request.body.multipart.FilePart
 import play.shaded.ahc.org.asynchttpclient.{AsyncCompletionHandler, AsyncHttpClient, Response => AHCResponse}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
+
+object CustomBodyWritable extends DefaultBodyWritables
 
 /**
   * FlinkRestClient is the primary contact point for the Flink REST server.
@@ -21,6 +24,8 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
   * factory methods on the FlinkRestClient object to create a client instance.
   */
 class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends AutoCloseable {
+
+  import CustomBodyWritable._
 
   implicit private val system = flinkRestClientConfig.maybeActorSystem.getOrElse(ActorSystem())
   implicit private val materializer = ActorMaterializer()
@@ -94,7 +99,7 @@ class FlinkRestClient(flinkRestClientConfig: FlinkRestClientConfig) extends Auto
       allowNonRestoredState.map { allow => ("allowNonRestoredState", allow.toString.toLowerCase)}
     ).flatten
 
-    wsClient.url(url + s"jars/$jarId/run").addQueryStringParameter(queryParameters:_*)
+    wsClient.url(url + s"jars/$jarId/run").addQueryStringParameters(queryParameters:_*)
       .post("").map(responseHandler.handleResponse[RunProgramResult])
   }
 

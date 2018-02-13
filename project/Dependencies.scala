@@ -1,8 +1,8 @@
 import sbt._
 
 object Dependencies {
-  private val playWsStandaloneVersion = "1.0.0-RC1"
-  private val playJsonVersion = "2.6.0-M6"
+  private val playWsStandaloneVersion = "1.1.3"
+  private val playJsonVersion = "2.6.3"
   private val slf4jVersion = "1.7.25"
   private val scalaTestVersion = "3.0.3"
   private val scalaMockVersion = "3.6.0"
